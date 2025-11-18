@@ -6,7 +6,11 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import { time_ago } from "../utils"
 import MainLayout from "../layouts/MainLayout.vue"
 import Plan from "@/components/Plan.vue"
-import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons"
+import {
+  faEdit,
+  faTrash,
+  faFileArrowDown,
+} from "@fortawesome/free-solid-svg-icons"
 import samples from "../samples.ts"
 
 import idb from "../idb"
@@ -56,6 +60,20 @@ async function loadPlans() {
   savedPlans.value = plans.slice().reverse()
 }
 
+async function handleFileUpload(event: Event) {
+  const jsonFile = (event.target as HTMLInputElement).files?.[0]
+  if (!jsonFile) {
+    return
+  }
+  const text = await jsonFile.text()
+  const planData = JSON.parse(text)
+  const name = planData[0]
+  const plan = planData[1]
+  const query = planData[2]
+  savePlanData(planData)
+  setPlanData(name, plan, query)
+}
+
 function loadPlan(plan?: Plan) {
   if (!plan) {
     return
@@ -72,6 +90,35 @@ function openPlan(plan: Plan) {
 
 function editPlan(plan: Plan) {
   loadPlan(plan)
+}
+
+async function exportPlan(plan: Plan) {
+  const json = JSON.stringify(plan)
+  // "2025-11-18T13:29:13.675Z" =>  "2025-11-18T13-29-13"
+  const normalizedDate = new Date(plan[3])
+    .toISOString()
+    .slice(0, 19)
+    .replaceAll(":", "-")
+  const filename = plan[0] + "_" + normalizedDate + "_pev2.json" // [name]_[date]_pev2.json
+  const file = new File([json], filename, { type: "application/json" })
+  if ("showSaveFilePicker" in window) {
+    const handle = await window.showSaveFilePicker({ suggestedName: filename })
+    const writable = await handle.createWritable()
+    await writable.write(file)
+    await writable.close()
+  } else {
+    const blobURL = URL.createObjectURL(file)
+    const a = document.createElement("a")
+    a.href = blobURL
+    a.download = filename
+    a.style.display = "none"
+    document.body.append(a)
+    a.click()
+    setTimeout(() => {
+      URL.revokeObjectURL(blobURL)
+      a.remove()
+    }, 1000)
+  }
 }
 
 async function deletePlan(plan: Plan) {
@@ -126,6 +173,16 @@ function handleDrop(event: DragEvent) {
             <code>psql -XqAt -f explain.sql > analyze.json</code>
           </div>
           <div class="dropdown ms-auto">
+            <label class="btn btn-secondary ms-2"
+              >Import<input
+                type="file"
+                :style="{
+                  visibility: 'hidden',
+                  position: 'absolute', // style issue
+                }"
+                @change="handleFileUpload"
+              />
+            </label>
             <button
               class="btn btn-secondary dropdown-toggle"
               type="button"
@@ -218,11 +275,18 @@ function handleDrop(event: DragEvent) {
                     <FontAwesomeIcon :icon="faTrash"></FontAwesomeIcon>
                   </button>
                   <button
-                    class="btn btn-sm btn-outline-secondary py-0 float-end"
+                    class="btn btn-sm btn-outline-secondary py-0 ms-1 float-end"
                     title="Edit plan details"
                     v-on:click.prevent="editPlan(plan)"
                   >
                     <FontAwesomeIcon :icon="faEdit"></FontAwesomeIcon>
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-secondary py-0 float-end"
+                    title="Export plan"
+                    v-on:click.prevent="exportPlan(plan)"
+                  >
+                    <FontAwesomeIcon :icon="faFileArrowDown"></FontAwesomeIcon>
                   </button>
                   <a
                     v-on:click.prevent="openPlan(plan)"
