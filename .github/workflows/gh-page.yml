@@ -1,0 +1,42 @@
+# This workflow build pev2 and deploy as GitHub Pages
+
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason"
+        required: false
+        default: "whatever"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+      - name: Setup pages
+        uses: actions/configure-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "dist-app"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
